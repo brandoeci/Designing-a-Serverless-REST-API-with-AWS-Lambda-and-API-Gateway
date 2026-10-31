@@ -1,0 +1,283 @@
+openapi: 3.0.1
+
+# =====================================================================================
+# Architecture B - Orders API with AWS Lambda PROXY integration
+#
+# One Lambda (orders-api-proxy) receives the whole HTTP request as a JSON event and returns the
+# whole HTTP response. API Gateway does routing and nothing else: no mapping templates, no
+# integration responses, no status codes.
+#
+# Import it with:
+#   scripts/deploy-api.sh                 (substitutes the placeholders and imports both APIs)
+# or manually:
+#   sed -e "s/{{REGION}}/us-east-1/g" -e "s/{{ACCOUNT_ID}}/123456789012/g" \
+#       infra/openapi-proxy.yaml > /tmp/proxy.yaml
+#   aws apigateway import-rest-api --body fileb:///tmp/proxy.yaml
+#
+# The responses documented below are the real contract of the API, but note that with a proxy
+# integration API Gateway does not enforce them: every status code and header in this file is
+# produced by Java code in com.eci.orders.adapter.lambda.proxy.HttpResponses, and is covered by
+# OrdersApiHandlerTest.
+# =====================================================================================
+
+info:
+  title: Orders API (proxy integration)
+  description: Order management API exposed through a single Lambda using proxy integration.
+  version: 1.0.0
+
+servers:
+  - url: https://{apiId}.execute-api.{region}.amazonaws.com/{stage}
+    variables:
+      apiId:
+        default: abc123xyz
+      region:
+        default: us-east-1
+      stage:
+        default: dev
+
+paths:
+
+  /orders:
+    get:
+      summary: Find the orders of a customer
+      description: >
+        customerId is a query parameter because this is a filtered view of the /orders collection,
+        not a different resource. There is no "list every order" operation: that answer is
+        unbounded, so the parameter is required.
+      parameters:
+        - name: customerId
+          in: query
+          required: true
+          description: Customer whose orders are requested.
+          schema:
+            type: string
+          example: CUST-42
+      responses:
+        "200":
+          description: Orders of the customer. An empty array when the customer has none.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+              examples:
+                twoOrders:
+                  value:
+                    - id: ORD-1001
+                      customerId: CUST-42
+                      product: MacBook Air
+                      quantity: 1
+                    - id: ORD-1002
+                      customerId: CUST-42
+                      product: Magic Keyboard
+                      quantity: 2
+                noOrders:
+                  value: []
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        # Always POST: this is the method used to invoke the Lambda service, not the method of the
+        # client request. The client method travels inside the event.
+        httpMethod: POST
+        uri: arn:aws:apigateway:{{REGION}}:lambda:path/2015-03-31/functions/arn:aws:lambda:{{REGION}}:{{ACCOUNT_ID}}:function:{{PROXY_FUNCTION}}/invocations
+        payloadFormatVersion: "1.0"
+        passthroughBehavior: when_no_match
+
+    post:
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+            example:
+              customerId: CUST-42
+              product: MacBook Air
+              quantity: 1
+      responses:
+        "201":
+          description: Order created.
+          headers:
+            Location:
+              description: Path of the created order.
+              schema:
+                type: string
+              example: /dev/orders/ORD-B2D04774
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+              example:
+                id: ORD-B2D04774
+                customerId: CUST-42
+                product: MacBook Air
+                quantity: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:{{REGION}}:lambda:path/2015-03-31/functions/arn:aws:lambda:{{REGION}}:{{ACCOUNT_ID}}:function:{{PROXY_FUNCTION}}/invocations
+        payloadFormatVersion: "1.0"
+        passthroughBehavior: when_no_match
+
+  /orders/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Identifier of the order.
+        schema:
+          type: string
+        example: ORD-1001
+
+    get:
+      summary: Retrieve an order
+      responses:
+        "200":
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+              example:
+                id: ORD-1001
+                customerId: CUST-42
+                product: MacBook Air
+                quantity: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:{{REGION}}:lambda:path/2015-03-31/functions/arn:aws:lambda:{{REGION}}:{{ACCOUNT_ID}}:function:{{PROXY_FUNCTION}}/invocations
+        payloadFormatVersion: "1.0"
+        passthroughBehavior: when_no_match
+
+# Note on 405 Method Not Allowed
+# ------------------------------
+# Only the methods declared above reach the Lambda. A request such as PUT /orders is rejected by
+# API Gateway itself with 403 "Missing Authentication Token", because no method matches the route.
+# The adapter does implement 405 with an Allow header (and OrdersApiHandlerTest proves it), but it
+# can only answer when API Gateway routes the request to it. Replacing the explicit methods with
+# x-amazon-apigateway-any-method would move that decision into the Java adapter. Both are defensible;
+# the trade-off is discussed in README.md ("who decides 405?").
+
+components:
+
+  schemas:
+
+    Order:
+      type: object
+      required: [id, customerId, product, quantity]
+      properties:
+        id:
+          type: string
+          description: Server-assigned identifier. Clients never choose it.
+          example: ORD-1001
+        customerId:
+          type: string
+          example: CUST-42
+        product:
+          type: string
+          example: MacBook Air
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1000
+          example: 1
+
+    CreateOrderRequest:
+      type: object
+      required: [customerId, product, quantity]
+      description: >
+        No id field: the identifier is assigned by the server, which is why creation is a POST to
+        the collection and not a PUT to a client-chosen URL.
+      properties:
+        customerId:
+          type: string
+          maxLength: 64
+          example: CUST-42
+        product:
+          type: string
+          maxLength: 120
+          example: MacBook Air
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1000
+          example: 1
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Stable machine-readable code. Clients may branch on it.
+          enum:
+            - ORDER_NOT_FOUND
+            - VALIDATION_ERROR
+            - MISSING_QUERY_PARAMETER
+            - MALFORMED_REQUEST
+            - ROUTE_NOT_FOUND
+            - METHOD_NOT_ALLOWED
+            - INTERNAL_ERROR
+        message:
+          type: string
+          description: Human-readable explanation. May change without notice.
+
+  responses:
+
+    BadRequest:
+      description: The request broke a rule of the contract.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            validation:
+              value:
+                error: VALIDATION_ERROR
+                message: product is required and must not be blank; quantity must be greater than zero
+            missingParameter:
+              value:
+                error: MISSING_QUERY_PARAMETER
+                message: Query parameter customerId is required
+            malformed:
+              value:
+                error: MALFORMED_REQUEST
+                message: Request body is not valid JSON
+
+    NotFound:
+      description: No order has that identifier.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: ORDER_NOT_FOUND
+            message: Order ORD-999 does not exist
+
+    InternalError:
+      description: Unexpected failure. Details are logged, never returned.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: INTERNAL_ERROR
+            message: An unexpected error occurred
