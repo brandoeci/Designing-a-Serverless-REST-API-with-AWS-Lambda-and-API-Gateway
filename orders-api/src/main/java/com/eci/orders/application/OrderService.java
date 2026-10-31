@@ -61,6 +61,27 @@ public class OrderService {
         return repository.findByCustomerId(requireIdentifier(customerId, "customerId"));
     }
 
+    /**
+     * Deletes an order.
+     *
+     * <p>Deliberately not idempotent: deleting an order that does not exist is reported as an error
+     * rather than silently succeeding, so that a client learns it was wrong about the state of the
+     * system. (Answering "deleted" either way is the other defensible choice; it makes retries
+     * after a network failure quieter at the cost of hiding client bugs.)</p>
+     *
+     * <p>This method decides <em>whether</em> the deletion is legitimate. It does not decide that
+     * the answer is HTTP 204 or 404: that translation belongs to the adapter.</p>
+     *
+     * @throws InvalidOrderException  if no usable identifier was supplied
+     * @throws OrderNotFoundException if no order has that identifier
+     */
+    public void deleteOrder(String id) {
+        String orderId = requireIdentifier(id, "id");
+        if (!repository.deleteById(orderId)) {
+            throw new OrderNotFoundException(orderId);
+        }
+    }
+
     private static String requireIdentifier(String value, String name) {
         if (value == null || value.isBlank()) {
             throw new InvalidOrderException(name + " is required and must not be blank");

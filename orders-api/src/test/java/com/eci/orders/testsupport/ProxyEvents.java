@@ -24,6 +24,11 @@ public final class ProxyEvents {
                 .withPathParameters(Map.of("id", orderId));
     }
 
+    public static APIGatewayProxyRequestEvent delete(String orderId) {
+        return event("DELETE", "/orders/{id}", "/orders/" + orderId)
+                .withPathParameters(Map.of("id", orderId));
+    }
+
     public static APIGatewayProxyRequestEvent findByCustomer(String customerId) {
         APIGatewayProxyRequestEvent event = event("GET", "/orders", "/orders");
         return customerId == null ? event : event.withQueryStringParameters(Map.of("customerId", customerId));

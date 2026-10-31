@@ -81,7 +81,8 @@ public class OrdersApiHandler implements RequestHandler<APIGatewayProxyRequestEv
             };
             case Routes.ORDER_BY_ID -> switch (method) {
                 case "GET" -> getOrder(event);
-                default -> HttpResponses.methodNotAllowed("GET", ErrorCode.METHOD_NOT_ALLOWED,
+                case "DELETE" -> deleteOrder(event);
+                default -> HttpResponses.methodNotAllowed("GET, DELETE", ErrorCode.METHOD_NOT_ALLOWED,
                         method + " is not supported on /orders/{id}");
             };
             default -> HttpResponses.error(404, ErrorCode.ROUTE_NOT_FOUND,
@@ -100,6 +101,14 @@ public class OrdersApiHandler implements RequestHandler<APIGatewayProxyRequestEv
     private APIGatewayProxyResponseEvent getOrder(APIGatewayProxyRequestEvent event) {
         Order order = orderService.getOrder(Routes.orderIdOf(event));
         return HttpResponses.json(200, OrderView.from(order));
+    }
+
+    private APIGatewayProxyResponseEvent deleteOrder(APIGatewayProxyRequestEvent event) {
+        orderService.deleteOrder(Routes.orderIdOf(event));
+        // The application said the order existed and is gone. Nothing is left to return, so 204 and
+        // no body; an order that did not exist left deleteOrder by throwing, and becomes a 404 in
+        // the catch clause above, with no extra code here.
+        return HttpResponses.noContent();
     }
 
     private APIGatewayProxyResponseEvent findOrdersByCustomer(APIGatewayProxyRequestEvent event) {

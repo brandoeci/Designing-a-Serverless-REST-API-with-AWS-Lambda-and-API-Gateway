@@ -33,4 +33,9 @@ public class BrokenOrderRepository implements OrderRepository {
     public List<Order> findByCustomerId(String customerId) {
         throw new IllegalStateException("storage unavailable");
     }
+
+    @Override
+    public boolean deleteById(String id) {
+        throw new IllegalStateException("storage unavailable");
+    }
 }

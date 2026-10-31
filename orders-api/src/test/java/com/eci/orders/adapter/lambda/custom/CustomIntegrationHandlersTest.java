@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,6 +36,7 @@ class CustomIntegrationHandlersTest {
     private final GetOrderHandler getOrder = new GetOrderHandler(service);
     private final CreateOrderHandler createOrder = new CreateOrderHandler(service);
     private final FindOrdersByCustomerHandler findOrders = new FindOrdersByCustomerHandler(service);
+    private final DeleteOrderHandler deleteOrder = new DeleteOrderHandler(service);
 
     @Test
     @DisplayName("GET: returns the order mapped from {\"id\": \"ORD-1001\"}")
@@ -117,6 +119,27 @@ class CustomIntegrationHandlersTest {
 
         assertEquals(ErrorCode.MISSING_QUERY_PARAMETER,
                 Json.read(failure.getMessage(), ErrorBody.class).getError());
+    }
+
+    @Test
+    @DisplayName("DELETE: returns nothing when the order existed")
+    void deletesOrder() {
+        assertNull(deleteOrder.handleRequest(new OrderIdInput("ORD-1001"), null));
+
+        ApiError afterwards =
+                assertThrows(ApiError.class, () -> getOrder.handleRequest(new OrderIdInput("ORD-1001"), null));
+        assertEquals(ErrorCode.ORDER_NOT_FOUND, Json.read(afterwards.getMessage(), ErrorBody.class).getError());
+    }
+
+    @Test
+    @DisplayName("DELETE: an unknown order fails with ORDER_NOT_FOUND")
+    void failsDeletingUnknownOrder() {
+        ApiError failure =
+                assertThrows(ApiError.class, () -> deleteOrder.handleRequest(new OrderIdInput("ORD-999"), null));
+
+        ErrorBody body = Json.read(failure.getMessage(), ErrorBody.class);
+        assertEquals(ErrorCode.ORDER_NOT_FOUND, body.getError());
+        assertEquals("Order ORD-999 does not exist", body.getMessage());
     }
 
     @Test

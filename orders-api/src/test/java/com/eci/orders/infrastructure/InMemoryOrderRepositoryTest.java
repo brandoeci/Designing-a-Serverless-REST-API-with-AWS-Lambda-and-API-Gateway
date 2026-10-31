@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("InMemoryOrderRepository")
@@ -50,6 +51,25 @@ class InMemoryOrderRepositoryTest {
 
         assertEquals(List.of("ORD-1", "ORD-3"),
                 repository.findByCustomerId("CUST-1").stream().map(Order::id).toList());
+    }
+
+    @Test
+    @DisplayName("deleting an existing order reports true and removes it")
+    void deletesExistingOrder() {
+        repository.save(new Order("ORD-1", "CUST-1", "Mouse", 1));
+
+        assertTrue(repository.deleteById("ORD-1"));
+        assertTrue(repository.findById("ORD-1").isEmpty());
+        assertEquals(0, repository.count());
+    }
+
+    @Test
+    @DisplayName("deleting an unknown order reports false and removes nothing")
+    void deleteUnknownOrder() {
+        repository.save(new Order("ORD-1", "CUST-1", "Mouse", 1));
+
+        assertFalse(repository.deleteById("ORD-404"));
+        assertEquals(1, repository.count());
     }
 
     @Test

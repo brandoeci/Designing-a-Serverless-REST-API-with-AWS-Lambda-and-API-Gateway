@@ -26,6 +26,7 @@ render() {
       -e "s|{{GET_FUNCTION}}|${GET_FUNCTION}|g" \
       -e "s|{{CREATE_FUNCTION}}|${CREATE_FUNCTION}|g" \
       -e "s|{{FIND_FUNCTION}}|${FIND_FUNCTION}|g" \
+      -e "s|{{DELETE_FUNCTION}}|${DELETE_FUNCTION}|g" \
       -e "s|{{PROXY_FUNCTION}}|${PROXY_FUNCTION}|g" \
       "${source_file}" > "${target_file}"
 }
@@ -112,7 +113,7 @@ fi
 
 if [[ "${TARGET}" == "both" || "${TARGET}" == "custom" ]]; then
   CUSTOM_API_ID="$(deploy_api "${CUSTOM_API_NAME}" "infra/openapi-custom.yaml" \
-    "${GET_FUNCTION}" "${CREATE_FUNCTION}" "${FIND_FUNCTION}" | tail -1)"
+    "${GET_FUNCTION}" "${CREATE_FUNCTION}" "${FIND_FUNCTION}" "${DELETE_FUNCTION}" | tail -1)"
   {
     echo "CUSTOM_API_ID=${CUSTOM_API_ID}"
     echo "CUSTOM_BASE_URL=$(invoke_url "${CUSTOM_API_ID}")"

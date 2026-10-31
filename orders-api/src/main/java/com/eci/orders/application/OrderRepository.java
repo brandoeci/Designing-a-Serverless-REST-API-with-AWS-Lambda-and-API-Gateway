@@ -20,4 +20,12 @@ public interface OrderRepository {
 
     /** Orders of a customer, ordered by id. Returns an empty list when the customer has none. */
     List<Order> findByCustomerId(String customerId);
+
+    /**
+     * Removes an order.
+     *
+     * @return {@code true} if an order was removed, {@code false} if none had that id. The boolean
+     *         keeps the "did it exist?" decision with the caller instead of making storage throw.
+     */
+    boolean deleteById(String id);
 }

@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Replays the real API Gateway proxy events stored in {@code src/test/resources/events}.
@@ -54,6 +55,15 @@ class ProxyEventFixturesTest {
 
         assertEquals(200, response.getStatusCode());
         assertEquals(2, Json.read(response.getBody(), OrderView[].class).length);
+    }
+
+    @Test
+    @DisplayName("delete-order.json returns 204 with no body")
+    void deleteOrderEvent() {
+        APIGatewayProxyResponseEvent response = handler.handleRequest(load("delete-order.json"), null);
+
+        assertEquals(204, response.getStatusCode());
+        assertNull(response.getBody());
     }
 
     private static APIGatewayProxyRequestEvent load(String fileName) {

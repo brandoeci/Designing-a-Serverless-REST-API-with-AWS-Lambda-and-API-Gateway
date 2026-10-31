@@ -19,6 +19,7 @@ what selects the entry point.
 | `orders-get-order` | `com.eci.orders.adapter.lambda.custom.GetOrderHandler::handleRequest` | A: `GET /orders/{id}` |
 | `orders-create-order` | `com.eci.orders.adapter.lambda.custom.CreateOrderHandler::handleRequest` | A: `POST /orders` |
 | `orders-find-orders-by-customer` | `com.eci.orders.adapter.lambda.custom.FindOrdersByCustomerHandler::handleRequest` | A: `GET /orders?customerId=` |
+| `orders-delete-order` | `com.eci.orders.adapter.lambda.custom.DeleteOrderHandler::handleRequest` | A: `DELETE /orders/{id}` |
 | `orders-api-proxy` | `com.eci.orders.adapter.lambda.proxy.OrdersApiHandler::handleRequest` | B: the whole API |
 
 Runtime **Java 17**, memory **512 MB** (more memory means more CPU, which shortens a Java cold
@@ -83,7 +84,21 @@ No `Location` header: an integration response parameter can copy
 `integration.response.body.id`, but API Gateway mapping cannot concatenate `/orders/` with it. See
 the note at the end of [`openapi-custom.yaml`](openapi-custom.yaml).
 
-### A.4 Deploy
+### A.4 `DELETE /orders/{id}`
+
+1. On `/orders/{id}` → **Create method** → `DELETE`, Lambda proxy **OFF**, function
+   `orders-delete-order`.
+2. **Integration request → Mapping templates**: `application/json` =
+   [`get-order-request.vtl`](mapping-templates/get-order-request.vtl) — the same template as the
+   `GET`, because a delete needs exactly the same input.
+3. **Method response**: delete `200`, add `204`, `400`, `404`, `500`.
+4. **Integration response**: the default one → status **204** with an **empty** response template
+   for `application/json`; the three error responses exactly as in A.1.
+
+The empty template matters: the handler returns `Void`, which the runtime serializes as the literal
+`null`, and a `204` must not carry a body.
+
+### A.5 Deploy
 
 **Deploy API** → stage `dev`. The invoke URL is
 `https://{apiId}.execute-api.{region}.amazonaws.com/dev`.
@@ -100,7 +115,7 @@ Create API → REST API. Name: `orders-api-proxy`.
    | Resource | Methods |
    | --- | --- |
    | `/orders` | `GET`, `POST` |
-   | `/orders/{id}` | `GET` |
+   | `/orders/{id}` | `GET`, `DELETE` |
 
 3. That is the whole configuration. No mapping templates, no method responses, no integration
    responses, no selection patterns: with proxy integration API Gateway hands the Lambda the entire
@@ -136,6 +151,10 @@ allowed to invoke the function.
 ## Verifying
 
 ```bash
-scripts/smoke-test.sh proxy    # 200, 201, 400, 404 (+204 once DELETE exists)
+scripts/smoke-test.sh proxy    # 200, 201, 204, 400, 404
 scripts/smoke-test.sh custom
 ```
+
+Note how much of this page Architecture A needed and how little Architecture B did: adding one
+operation cost a new function, a mapping template and eight response configurations in A, versus one
+method in B.

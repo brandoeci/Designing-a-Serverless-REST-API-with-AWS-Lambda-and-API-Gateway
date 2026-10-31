@@ -190,6 +190,52 @@ paths:
               application/json: |
                 {"error":"INTERNAL_ERROR","message":"An unexpected error occurred"}
 
+    delete:
+      summary: Delete an order
+      responses:
+        "204":
+          description: Order deleted. No body.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: aws
+        httpMethod: POST
+        uri: arn:aws:apigateway:{{REGION}}:lambda:path/2015-03-31/functions/arn:aws:lambda:{{REGION}}:{{ACCOUNT_ID}}:function:{{DELETE_FUNCTION}}/invocations
+        passthroughBehavior: never
+        # The same template as the GET: a delete needs exactly the same input, the id from the path.
+        requestTemplates:
+          application/json: |
+            {
+              "id": "$util.escapeJavaScript($input.params('id'))"
+            }
+        responses:
+          # The handler returns Void, which the runtime serializes as the literal `null`. The empty
+          # response template throws that away, because a 204 must not carry a body. In the proxy
+          # architecture the equivalent is HttpResponses.noContent().
+          default:
+            statusCode: "204"
+            responseTemplates:
+              application/json: ""
+          ".*ORDER_NOT_FOUND.*":
+            statusCode: "404"
+            responseTemplates:
+              application/json: |
+                $input.path('$.errorMessage')
+          ".*(VALIDATION_ERROR|MISSING_QUERY_PARAMETER|MALFORMED_REQUEST).*":
+            statusCode: "400"
+            responseTemplates:
+              application/json: |
+                $input.path('$.errorMessage')
+          ".*INTERNAL_ERROR.*":
+            statusCode: "500"
+            responseTemplates:
+              application/json: |
+                {"error":"INTERNAL_ERROR","message":"An unexpected error occurred"}
+
 # Notes on the limits of this architecture
 # ----------------------------------------
 # 1. No Location header on 201. An integration response parameter can only copy a static value or

@@ -54,6 +54,22 @@ two identical POSTs create two orders.
 An unknown customer returns `200 []`, never `404`. The resource being addressed is the collection,
 and it exists; "this customer has no orders" is a valid answer, not a missing resource.
 
+### 4. Delete an order
+
+| | |
+| --- | --- |
+| Method / URL | `DELETE /orders/{id}` |
+| Path parameters | `id` — required |
+| Request body | — |
+| Success | `204 No Content`, no body |
+| Errors | `400` (blank id), `404` (no such order), `500` |
+
+Added by the final challenge. Deliberately **not** idempotent: deleting an order that does not exist
+returns `404` rather than silently succeeding, so a client learns it was wrong about the state of the
+system. (Always answering `204` is the other defensible choice — quieter retries, hidden client
+bugs.) The prediction written before implementing it is in
+[`PREDICTION-DELETE.md`](PREDICTION-DELETE.md).
+
 ## Representations
 
 An order on the wire:
@@ -95,13 +111,11 @@ change at any time. No stack traces, no Java class names, no SQL, no internal id
 | --- | --- | --- |
 | `200 OK` | successful `GET` | — |
 | `201 Created` | successful `POST` | `200` would not tell the client a new resource now exists, nor where. |
+| `204 No Content` | successful `DELETE` | The deletion succeeded and nothing is left to return. `200 {}` would invent a body. |
 | `400 Bad Request` | the client sent something the contract forbids | `422` is defensible but is not in the set the workshop asks for, and `400` is what every HTTP client already understands. |
 | `404 Not Found` | the addressed order does not exist | `204` would wrongly suggest "it exists and is empty". |
 | `405 Method Not Allowed` | known resource, wrong method | `404` would lie about the resource not existing. |
 | `500 Internal Server Error` | a bug or an unavailable dependency | — |
-
-`204 No Content` is not used by the three initial operations. It arrives with `DELETE /orders/{id}`
-in the final challenge.
 
 ## Design questions
 

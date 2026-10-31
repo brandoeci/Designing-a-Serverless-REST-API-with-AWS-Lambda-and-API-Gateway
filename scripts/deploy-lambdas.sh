@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Creates or updates the four Lambda functions of the workshop from the same JAR.
+# Creates or updates the five Lambda functions of the workshop from the same JAR.
 #
 #   scripts/deploy-lambdas.sh
 #
-# Three functions serve Architecture A (one per operation) and one serves Architecture B
+# Four functions serve Architecture A (one per operation) and one serves Architecture B
 # (the whole API). They share a single artifact: the handler string is what selects the entry point.
 
 set -euo pipefail
@@ -53,6 +53,7 @@ deploy_function() {
 deploy_function "${GET_FUNCTION}"    "${GET_HANDLER}"    "Architecture A - GET /orders/{id}"
 deploy_function "${CREATE_FUNCTION}" "${CREATE_HANDLER}" "Architecture A - POST /orders"
 deploy_function "${FIND_FUNCTION}"   "${FIND_HANDLER}"   "Architecture A - GET /orders?customerId="
+deploy_function "${DELETE_FUNCTION}" "${DELETE_HANDLER}" "Architecture A - DELETE /orders/{id}"
 deploy_function "${PROXY_FUNCTION}"  "${PROXY_HANDLER}"  "Architecture B - whole Orders API (proxy)"
 
 log "Done"

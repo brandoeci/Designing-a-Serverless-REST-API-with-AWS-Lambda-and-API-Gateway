@@ -6,11 +6,11 @@ idempotent: running it twice updates instead of duplicating.
 | Script | What it does | Needs AWS credentials |
 | --- | --- | --- |
 | `build.sh` | `mvn clean package` and shows the artifact | no |
-| `deploy-lambdas.sh` | creates/updates the four functions from the same JAR | yes |
+| `deploy-lambdas.sh` | creates/updates the five functions from the same JAR | yes |
 | `invoke-lambdas.sh` | invokes the functions directly with JSON (Part II) | yes |
 | `deploy-api.sh` | imports both REST APIs from `infra/*.yaml`, deploys the stage, grants invoke permission | yes |
 | `smoke-test.sh` | calls a deployed API over HTTP and checks 200/201/204/400/404 | yes |
-| `teardown.sh` | deletes both APIs and the four functions | yes |
+| `teardown.sh` | deletes both APIs and the five functions | yes |
 | `config.sh` | shared configuration, sourced by the others | — |
 
 ## Order

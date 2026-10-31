@@ -159,4 +159,50 @@ class OrderServiceTest {
             assertThrows(InvalidOrderException.class, () -> service.findOrdersByCustomer(" "));
         }
     }
+
+    @Nested
+    @DisplayName("deleteOrder")
+    class DeleteOrder {
+
+        @Test
+        @DisplayName("deletes an existing order, which can then no longer be retrieved")
+        void deletesExistingOrder() {
+            service.deleteOrder("ORD-1001");
+
+            assertThrows(OrderNotFoundException.class, () -> service.getOrder("ORD-1001"));
+        }
+
+        @Test
+        @DisplayName("fails when the order does not exist")
+        void failsDeletingUnknownOrder() {
+            OrderNotFoundException failure =
+                    assertThrows(OrderNotFoundException.class, () -> service.deleteOrder("ORD-999"));
+
+            assertEquals("ORD-999", failure.orderId());
+        }
+
+        @Test
+        @DisplayName("is not idempotent: deleting twice fails the second time")
+        void failsDeletingTwice() {
+            service.deleteOrder("ORD-1001");
+
+            assertThrows(OrderNotFoundException.class, () -> service.deleteOrder("ORD-1001"));
+        }
+
+        @Test
+        @DisplayName("rejects a blank identifier")
+        void rejectsBlankId() {
+            assertThrows(InvalidOrderException.class, () -> service.deleteOrder(" "));
+            assertThrows(InvalidOrderException.class, () -> service.deleteOrder(null));
+        }
+
+        @Test
+        @DisplayName("leaves the other orders of the same customer untouched")
+        void deletesOnlyTheRequestedOrder() {
+            service.deleteOrder("ORD-1001");
+
+            assertEquals(List.of("ORD-1002"),
+                    service.findOrdersByCustomer("CUST-42").stream().map(Order::id).toList());
+        }
+    }
 }

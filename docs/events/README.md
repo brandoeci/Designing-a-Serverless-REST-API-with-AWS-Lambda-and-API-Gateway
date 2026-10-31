@@ -14,6 +14,7 @@ build would break instead of the documentation quietly going stale.
 | `get-order.json` | `GET /orders/ORD-1001` |
 | `post-orders.json` | `POST /orders` with a JSON body |
 | `get-orders-by-customer.json` | `GET /orders?customerId=CUST-42` |
+| `delete-order.json` | `DELETE /orders/ORD-1003` |
 
 ## Where everything is
 

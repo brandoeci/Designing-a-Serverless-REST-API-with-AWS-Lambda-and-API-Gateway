@@ -38,6 +38,9 @@ CREATE_HANDLER="com.eci.orders.adapter.lambda.custom.CreateOrderHandler::handleR
 FIND_FUNCTION="${FIND_FUNCTION:-orders-find-orders-by-customer}"
 FIND_HANDLER="com.eci.orders.adapter.lambda.custom.FindOrdersByCustomerHandler::handleRequest"
 
+DELETE_FUNCTION="${DELETE_FUNCTION:-orders-delete-order}"
+DELETE_HANDLER="com.eci.orders.adapter.lambda.custom.DeleteOrderHandler::handleRequest"
+
 # Architecture B: one function for the whole API, receiving the HTTP request as an event.
 PROXY_FUNCTION="${PROXY_FUNCTION:-orders-api-proxy}"
 PROXY_HANDLER="com.eci.orders.adapter.lambda.proxy.OrdersApiHandler::handleRequest"

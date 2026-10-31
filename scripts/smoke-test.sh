@@ -119,6 +119,12 @@ check 400 GET  "/orders"
 log "Missing order (404)"
 check 404 GET "/orders/ORD-999"
 
+log "Deletion (204, then 404 because it is not idempotent)"
+check 204 DELETE "/orders/ORD-1003"
+check 404 DELETE "/orders/ORD-1003"
+check 404 DELETE "/orders/ORD-999"
+check 404 GET    "/orders/ORD-1003"
+
 log "Summary"
 info "passed  : ${PASSED}"
 info "warnings: ${WARNED}"

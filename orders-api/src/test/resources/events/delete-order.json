@@ -1,0 +1,42 @@
+{
+  "resource": "/orders/{id}",
+  "path": "/orders/ORD-1003",
+  "httpMethod": "DELETE",
+  "headers": {
+    "Accept": "*/*",
+    "Host": "abc123xyz.execute-api.us-east-1.amazonaws.com",
+    "User-Agent": "curl/8.7.1",
+    "X-Forwarded-Proto": "https"
+  },
+  "multiValueHeaders": {
+    "Accept": ["*/*"]
+  },
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": {
+    "id": "ORD-1003"
+  },
+  "stageVariables": null,
+  "requestContext": {
+    "resourceId": "a1b2c3",
+    "resourcePath": "/orders/{id}",
+    "httpMethod": "DELETE",
+    "extendedRequestId": "Zt9kLH0PIAMFdel=",
+    "requestTime": "30/Oct/2026:14:31:40 +0000",
+    "path": "/dev/orders/ORD-1003",
+    "accountId": "123456789012",
+    "protocol": "HTTP/1.1",
+    "stage": "dev",
+    "domainPrefix": "abc123xyz",
+    "requestTimeEpoch": 1793457100000,
+    "requestId": "d4e5f607-8192-4a34-bc5d-6e7f80912345",
+    "identity": {
+      "sourceIp": "181.49.23.17",
+      "userAgent": "curl/8.7.1"
+    },
+    "domainName": "abc123xyz.execute-api.us-east-1.amazonaws.com",
+    "apiId": "abc123xyz"
+  },
+  "body": null,
+  "isBase64Encoded": false
+}

@@ -48,6 +48,8 @@ invoke "A4 create another order"  "${CREATE_FUNCTION}" '{"customerId":"CUST-7","
 invoke "A5 create invalid order"  "${CREATE_FUNCTION}" '{"customerId":"CUST-42","quantity":0}'
 invoke "A6 find customer orders"  "${FIND_FUNCTION}"   '{"customerId":"CUST-42"}'
 invoke "A7 find unknown customer" "${FIND_FUNCTION}"   '{"customerId":"CUST-100"}'
+invoke "A8 delete an order"       "${DELETE_FUNCTION}" '{"id":"ORD-1003"}'
+invoke "A9 delete missing order"  "${DELETE_FUNCTION}" '{"id":"ORD-999"}'
 
 # ---- Architecture B: the same function receives a whole HTTP request ----
 

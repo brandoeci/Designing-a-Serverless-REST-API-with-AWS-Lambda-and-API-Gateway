@@ -42,6 +42,11 @@ public class InMemoryOrderRepository implements OrderRepository {
                 .toList();
     }
 
+    @Override
+    public boolean deleteById(String id) {
+        return ordersById.remove(id) != null;
+    }
+
     /** Number of orders currently held. Used by tests and diagnostics. */
     public int count() {
         return ordersById.size();

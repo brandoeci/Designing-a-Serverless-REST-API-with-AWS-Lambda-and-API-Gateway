@@ -86,8 +86,61 @@ class OrdersApiHandlerTest {
             APIGatewayProxyResponseEvent response = handler.handleRequest(event, null);
 
             assertEquals(405, response.getStatusCode());
-            assertEquals("GET", response.getHeaders().get("Allow"));
+            assertEquals("GET, DELETE", response.getHeaders().get("Allow"));
             assertEquals(ErrorCode.METHOD_NOT_ALLOWED, Json.read(response.getBody(), ErrorBody.class).getError());
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /orders/{id}")
+    class DeleteOrder {
+
+        @Test
+        @DisplayName("204 with no body and no content type when the order existed")
+        void deletesOrder() {
+            APIGatewayProxyResponseEvent response = handler.handleRequest(ProxyEvents.delete("ORD-1001"), null);
+
+            assertEquals(204, response.getStatusCode());
+            assertNull(response.getBody(), "a 204 must not carry a body");
+            assertNull(response.getHeaders(), "a 204 must not advertise a content type");
+        }
+
+        @Test
+        @DisplayName("the order is really gone afterwards")
+        void deletedOrderIsNotRetrievable() {
+            handler.handleRequest(ProxyEvents.delete("ORD-1001"), null);
+
+            APIGatewayProxyResponseEvent response = handler.handleRequest(ProxyEvents.get("ORD-1001"), null);
+
+            assertEquals(404, response.getStatusCode());
+        }
+
+        @Test
+        @DisplayName("404 with ORDER_NOT_FOUND when the order does not exist")
+        void rejectsUnknownOrder() {
+            APIGatewayProxyResponseEvent response = handler.handleRequest(ProxyEvents.delete("ORD-999"), null);
+
+            assertEquals(404, response.getStatusCode());
+            ErrorBody error = Json.read(response.getBody(), ErrorBody.class);
+            assertEquals(ErrorCode.ORDER_NOT_FOUND, error.getError());
+            assertEquals("Order ORD-999 does not exist", error.getMessage());
+        }
+
+        @Test
+        @DisplayName("deleting twice returns 404 the second time: the operation is not idempotent")
+        void isNotIdempotent() {
+            assertEquals(204, handler.handleRequest(ProxyEvents.delete("ORD-1001"), null).getStatusCode());
+            assertEquals(404, handler.handleRequest(ProxyEvents.delete("ORD-1001"), null).getStatusCode());
+        }
+
+        @Test
+        @DisplayName("405 on the collection: DELETE /orders is not an operation of this API")
+        void rejectsDeleteOnTheCollection() {
+            APIGatewayProxyResponseEvent response =
+                    handler.handleRequest(ProxyEvents.event("DELETE", "/orders", "/orders"), null);
+
+            assertEquals(405, response.getStatusCode());
+            assertEquals("GET, POST", response.getHeaders().get("Allow"));
         }
     }
 

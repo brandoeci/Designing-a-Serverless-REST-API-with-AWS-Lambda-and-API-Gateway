@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deletes everything the other scripts created: both REST APIs and the four functions.
+# Deletes everything the other scripts created: both REST APIs and the five functions.
 #
 #   scripts/teardown.sh
 #
@@ -39,6 +39,7 @@ delete_api "${CUSTOM_API_NAME}"
 delete_function "${GET_FUNCTION}"
 delete_function "${CREATE_FUNCTION}"
 delete_function "${FIND_FUNCTION}"
+delete_function "${DELETE_FUNCTION}"
 delete_function "${PROXY_FUNCTION}"
 
 rm -f "${DEPLOY_DIR}/outputs.env"
