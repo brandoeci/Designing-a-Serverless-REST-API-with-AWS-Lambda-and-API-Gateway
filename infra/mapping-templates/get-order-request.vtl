@@ -1,0 +1,15 @@
+## Architecture A - request mapping template for GET /orders/{id}
+##
+## Integration: Lambda (non-proxy / "custom"), function orders-get-order
+## Content type: application/json
+##
+## API Gateway extracts the path parameter and hands the Lambda a document that matches
+## com.eci.orders.adapter.lambda.custom.OrderIdInput. The function never sees a URL, a method or
+## a header.
+##
+##   GET /orders/ORD-1001   ->   { "id": "ORD-1001" }
+##
+## escapeJavaScript is what keeps a hostile path such as /orders/a"b from producing broken JSON.
+{
+  "id": "$util.escapeJavaScript($input.params('id'))"
+}

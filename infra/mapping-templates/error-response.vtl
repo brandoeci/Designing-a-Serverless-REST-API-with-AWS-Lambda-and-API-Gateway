@@ -1,0 +1,16 @@
+## Architecture A - integration response template for every mapped error (400, 404)
+##
+## A Lambda that fails reports this payload to API Gateway:
+##
+##   { "errorMessage": "...", "errorType": "...", "stackTrace": [ ... ] }
+##
+## com.eci.orders.adapter.lambda.custom.ApiError makes errorMessage *be* the JSON error body of
+## the API, so this template only has to copy it out. Writing the string unquoted is what keeps it
+## a JSON object instead of a JSON string.
+##
+##   errorMessage = {"error":"ORDER_NOT_FOUND","message":"Order ORD-999 does not exist"}
+##   response     = {"error":"ORDER_NOT_FOUND","message":"Order ORD-999 does not exist"}
+##
+## The status code itself is not decided here: it comes from the integration response whose
+## selection pattern matched the error code (see infra/openapi-custom.yaml).
+$input.path('$.errorMessage')

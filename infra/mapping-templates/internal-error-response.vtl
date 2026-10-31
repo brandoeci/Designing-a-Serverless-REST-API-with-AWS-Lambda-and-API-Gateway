@@ -1,0 +1,6 @@
+## Architecture A - integration response template for 500
+##
+## Used by the integration response whose selection pattern matches INTERNAL_ERROR. The message is
+## a constant on purpose: a client must never receive a Java class name, a stack trace or the name
+## of a failing dependency. The details stay in CloudWatch, where the handler logged them.
+{"error":"INTERNAL_ERROR","message":"An unexpected error occurred"}

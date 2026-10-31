@@ -1,0 +1,14 @@
+## Architecture A - request mapping template for GET /orders?customerId=...
+##
+## Integration: Lambda (non-proxy / "custom"), function orders-find-orders-by-customer
+## Content type: application/json
+##
+##   GET /orders?customerId=CUST-42   ->   { "customerId": "CUST-42" }
+##   GET /orders                      ->   { "customerId": null }
+##
+## The absent parameter is sent as JSON null rather than as the string "null", so the Lambda can
+## tell "not supplied" from "supplied empty" and answer 400 MISSING_QUERY_PARAMETER.
+#set($customerId = $input.params().querystring.get('customerId'))
+{
+  "customerId": #if($customerId && $customerId != "")"$util.escapeJavaScript($customerId)"#{else}null#end
+}

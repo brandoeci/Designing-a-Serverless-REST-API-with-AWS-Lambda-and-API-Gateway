@@ -1,0 +1,25 @@
+## Architecture A - request mapping template for POST /orders
+##
+## Integration: Lambda (non-proxy / "custom"), function orders-create-order
+## Content type: application/json
+##
+## The three fields the application needs are copied explicitly instead of passing the body
+## through with $input.json('$'). That is deliberate:
+##   - a client cannot smuggle extra fields into the function;
+##   - a missing field arrives as JSON null, which the application reports as 400 instead of
+##     silently defaulting to 0 or "".
+##
+##   { "customerId": "CUST-42", "product": "MacBook Air", "quantity": 1, "discount": 99 }
+##   ->
+##   { "customerId": "CUST-42", "product": "MacBook Air", "quantity": 1 }
+##
+## $input.json() returns the value already JSON-encoded (quotes included for strings) and an empty
+## string when the field is absent.
+#set($customerId = $input.json('$.customerId'))
+#set($product = $input.json('$.product'))
+#set($quantity = $input.json('$.quantity'))
+{
+  "customerId": #if($customerId == "")null#{else}$customerId#end,
+  "product": #if($product == "")null#{else}$product#end,
+  "quantity": #if($quantity == "")null#{else}$quantity#end
+}

@@ -1,0 +1,285 @@
+openapi: 3.0.1
+
+# =====================================================================================
+# Architecture A - Orders API with API Gateway CUSTOM (non-proxy) integration
+#
+# One Lambda per operation. API Gateway owns the HTTP layer:
+#   - it extracts path and query parameters and builds the JSON document each function expects
+#     (requestTemplates, mirrored in infra/mapping-templates/*.vtl);
+#   - it chooses the status code of a success (statusCode under "default");
+#   - it chooses the status code of a failure by matching a regular expression against the
+#     errorMessage reported by the failed Lambda (the keys under "responses").
+#
+# The Java functions receive plain documents such as {"id":"ORD-1001"} and know nothing about HTTP.
+#
+# Import it with scripts/deploy-api.sh, which substitutes the {{PLACEHOLDERS}} below.
+# =====================================================================================
+
+info:
+  title: Orders API (custom integration)
+  description: >
+    Order management API where API Gateway transforms every request and response. Functionally
+    identical to infra/openapi-proxy.yaml: same URLs, same bodies, same status codes, same error
+    documents. Only the distribution of responsibilities differs.
+  version: 1.0.0
+
+paths:
+
+  /orders:
+    get:
+      summary: Find the orders of a customer
+      parameters:
+        - name: customerId
+          in: query
+          required: true
+          schema:
+            type: string
+          example: CUST-42
+      responses:
+        "200":
+          description: Orders of the customer, possibly an empty array.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: aws
+        httpMethod: POST
+        uri: arn:aws:apigateway:{{REGION}}:lambda:path/2015-03-31/functions/arn:aws:lambda:{{REGION}}:{{ACCOUNT_ID}}:function:{{FIND_FUNCTION}}/invocations
+        passthroughBehavior: never
+        requestTemplates:
+          application/json: |
+            #set($customerId = $input.params().querystring.get('customerId'))
+            {
+              "customerId": #if($customerId && $customerId != "")"$util.escapeJavaScript($customerId)"#{else}null#end
+            }
+        responses:
+          default:
+            statusCode: "200"
+          ".*ORDER_NOT_FOUND.*":
+            statusCode: "404"
+            responseTemplates:
+              application/json: |
+                $input.path('$.errorMessage')
+          ".*(VALIDATION_ERROR|MISSING_QUERY_PARAMETER|MALFORMED_REQUEST).*":
+            statusCode: "400"
+            responseTemplates:
+              application/json: |
+                $input.path('$.errorMessage')
+          ".*INTERNAL_ERROR.*":
+            statusCode: "500"
+            responseTemplates:
+              application/json: |
+                {"error":"INTERNAL_ERROR","message":"An unexpected error occurred"}
+
+    post:
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: Order created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: aws
+        httpMethod: POST
+        uri: arn:aws:apigateway:{{REGION}}:lambda:path/2015-03-31/functions/arn:aws:lambda:{{REGION}}:{{ACCOUNT_ID}}:function:{{CREATE_FUNCTION}}/invocations
+        passthroughBehavior: never
+        requestTemplates:
+          application/json: |
+            #set($customerId = $input.json('$.customerId'))
+            #set($product = $input.json('$.product'))
+            #set($quantity = $input.json('$.quantity'))
+            {
+              "customerId": #if($customerId == "")null#{else}$customerId#end,
+              "product": #if($product == "")null#{else}$product#end,
+              "quantity": #if($quantity == "")null#{else}$quantity#end
+            }
+        responses:
+          # 201 is configured here, in the infrastructure. Nothing in CreateOrderHandler.java
+          # mentions it, which is precisely the cost and the benefit of this architecture.
+          default:
+            statusCode: "201"
+          ".*ORDER_NOT_FOUND.*":
+            statusCode: "404"
+            responseTemplates:
+              application/json: |
+                $input.path('$.errorMessage')
+          ".*(VALIDATION_ERROR|MISSING_QUERY_PARAMETER|MALFORMED_REQUEST).*":
+            statusCode: "400"
+            responseTemplates:
+              application/json: |
+                $input.path('$.errorMessage')
+          ".*INTERNAL_ERROR.*":
+            statusCode: "500"
+            responseTemplates:
+              application/json: |
+                {"error":"INTERNAL_ERROR","message":"An unexpected error occurred"}
+
+  /orders/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: ORD-1001
+
+    get:
+      summary: Retrieve an order
+      responses:
+        "200":
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: aws
+        httpMethod: POST
+        uri: arn:aws:apigateway:{{REGION}}:lambda:path/2015-03-31/functions/arn:aws:lambda:{{REGION}}:{{ACCOUNT_ID}}:function:{{GET_FUNCTION}}/invocations
+        passthroughBehavior: never
+        requestTemplates:
+          application/json: |
+            {
+              "id": "$util.escapeJavaScript($input.params('id'))"
+            }
+        responses:
+          default:
+            statusCode: "200"
+          ".*ORDER_NOT_FOUND.*":
+            statusCode: "404"
+            responseTemplates:
+              application/json: |
+                $input.path('$.errorMessage')
+          ".*(VALIDATION_ERROR|MISSING_QUERY_PARAMETER|MALFORMED_REQUEST).*":
+            statusCode: "400"
+            responseTemplates:
+              application/json: |
+                $input.path('$.errorMessage')
+          ".*INTERNAL_ERROR.*":
+            statusCode: "500"
+            responseTemplates:
+              application/json: |
+                {"error":"INTERNAL_ERROR","message":"An unexpected error occurred"}
+
+# Notes on the limits of this architecture
+# ----------------------------------------
+# 1. No Location header on 201. An integration response parameter can only copy a static value or
+#    a single field of the integration body (integration.response.body.id); API Gateway mapping
+#    cannot concatenate '/orders/' with that id. The options are to leak URL knowledge into the
+#    Lambda (returning a "location" field) or to omit the header. This API omits it here and
+#    returns it in Architecture B, where one line of Java does the job.
+#
+# 2. The 500 pattern only catches failures our own code classified as INTERNAL_ERROR
+#    (CustomErrorMapper does that for every unexpected exception). A failure outside the handler
+#    (a timeout, or a document the runtime cannot deserialize) matches no pattern and therefore
+#    falls through to the "default" response, which is the success one: the client would get
+#    200 OK with a Lambda error envelope. A true catch-all needs a negative lookahead such as
+#      ^(?!.*(?:ORDER_NOT_FOUND|VALIDATION_ERROR|MISSING_QUERY_PARAMETER|MALFORMED_REQUEST))[\s\S]*$
+#    mapped to 500. This trap does not exist in Architecture B, where the adapter cannot fail to
+#    return a status code.
+
+components:
+
+  schemas:
+
+    Order:
+      type: object
+      required: [id, customerId, product, quantity]
+      properties:
+        id:
+          type: string
+          example: ORD-1001
+        customerId:
+          type: string
+          example: CUST-42
+        product:
+          type: string
+          example: MacBook Air
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1000
+          example: 1
+
+    CreateOrderRequest:
+      type: object
+      required: [customerId, product, quantity]
+      properties:
+        customerId:
+          type: string
+          maxLength: 64
+          example: CUST-42
+        product:
+          type: string
+          maxLength: 120
+          example: MacBook Air
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1000
+          example: 1
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          example: ORDER_NOT_FOUND
+        message:
+          type: string
+          example: Order ORD-999 does not exist
+
+  responses:
+
+    BadRequest:
+      description: The request broke a rule of the contract.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    NotFound:
+      description: No order has that identifier.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    InternalError:
+      description: Unexpected failure. Details are logged, never returned.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
