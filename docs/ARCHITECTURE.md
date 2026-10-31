@@ -128,7 +128,8 @@ style changed the adapter and the gateway configuration, and nothing else.
 orders-api.jar (3.3 MB, shaded)
 ├── com/eci/orders/...                 29 application + adapter classes
 ├── com/amazonaws/services/lambda/...  aws-lambda-java-core, aws-lambda-java-events
-└── com/fasterxml/jackson/...          jackson-core, jackson-databind, jackson-annotations
+├── com/fasterxml/jackson/...          jackson-core, jackson-databind, jackson-annotations
+└── org/joda/time/...                  joda-time, pulled in transitively by the events library
 ```
 
 Lambda does not resolve Maven dependencies, so everything the function needs at runtime has to be

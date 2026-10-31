@@ -8,6 +8,10 @@ Before recording: refresh the AWS Academy credentials (`AWS Details → AWS CLI`
 `~/.aws/credentials`) and run `scripts/build.sh` once, so Maven's downloads do not appear in the
 video.
 
+While recording, take the six screenshots the README is still waiting for — they are the same
+moments, so it costs nothing extra. Each one is marked **[shot NN]** below; save it over
+`docs/img/NN-*.png` keeping the file name, and the README picks it up with no edit.
+
 ---
 
 ## 1. Running the tests locally — 60 s
@@ -37,8 +41,10 @@ resolve Maven dependencies. 3.3 MB, no `main`, no server.*
 
 ## 3. Invoking a Lambda directly — 60 s
 
-Show the Lambda console with the four functions and point out that they share one artifact and
-differ only in the handler string. Then, from the terminal:
+Show the Lambda console with the five functions and point out that they share one artifact and
+differ only in the handler string. **[shot 10: `docs/img/10-lambda-console.png`]** Open
+`orders-get-order` → Test, run it with `{"id":"ORD-1001"}` **[shot 11:
+`docs/img/11-lambda-invoke.png`]**. Then, from the terminal:
 
 ```bash
 aws lambda invoke --function-name orders-get-order \
@@ -115,6 +121,8 @@ curl -i -X DELETE "$BASE/orders/ORD-999"       # 404
 scripts/smoke-test.sh proxy
 ```
 
+**[shot 15: `docs/img/15-smoke-test.png`]** — the PASS lines for 200, 201, 204, 400 and 404.
+
 ## 5. Both architectures side by side — 90 s
 
 Show the same two calls against the custom-integration API:
@@ -128,11 +136,12 @@ curl -i "$CUSTOM/orders/ORD-999"
 Then, in the API Gateway console for `orders-api-custom`, show:
 
 * `GET /orders/{id}` → **Integration request** → the mapping template that turns the path into
-  `{"id":"ORD-1001"}`;
-* **Integration response** → the `.*ORDER_NOT_FOUND.*` pattern that produces the `404`.
+  `{"id":"ORD-1001"}` **[shot 12: `docs/img/12-apigw-mapping.png`]**;
+* **Integration response** → the `.*ORDER_NOT_FOUND.*` pattern that produces the `404`
+  **[shot 13: `docs/img/13-apigw-selection-pattern.png`]**.
 
 And in `orders-api-proxy`, show that the same method has **nothing** configured beyond "Lambda proxy
-integration: ON".
+integration: ON" **[shot 14: `docs/img/14-apigw-proxy.png`]**.
 
 Say: *identical responses. In one API the status code lives in a regular expression in the console;
 in the other it lives in `HttpResponses.java`, where a unit test can reach it.*
@@ -160,3 +169,4 @@ gateway configuration changed.*
 - [ ] `204` and `404` for `DELETE`
 - [ ] both architectures answering identically
 - [ ] the architecture diagram, explained
+- [ ] the six screenshots saved over `docs/img/10-*.png` … `docs/img/15-*.png`

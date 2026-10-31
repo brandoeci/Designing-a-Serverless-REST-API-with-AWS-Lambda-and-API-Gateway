@@ -36,6 +36,7 @@ made.
 | [AI-assisted development](#ai-assisted-development) | how the assistant was used and where it was wrong |
 | [Final architecture diagram](#final-architecture-diagram) | required diagram |
 | [Testing](#testing) | what is covered and how |
+| [Evidence](#evidence) | screenshots of the build, the tests and the API behaving |
 | [Deliverables](#deliverables) | where each required item lives |
 
 ---
@@ -90,6 +91,8 @@ IAM roles; see [`scripts/README.md`](scripts/README.md).
 │   ├── mapping-templates/*.vtl           the same templates, standalone and commented
 │   └── API-GATEWAY-SETUP.md              console walkthrough + CLI equivalents
 ├── scripts/                              build, deploy, invoke, smoke-test, teardown
+├── tools/
+│   └── ReplayEvents.java                 replays the saved events through the real adapter
 └── docs/
     ├── API-CONTRACT.md                   the contract, designed before any code
     ├── ARCHITECTURE.md                   diagrams, responsibility matrix, dependency rules
@@ -97,7 +100,8 @@ IAM roles; see [`scripts/README.md`](scripts/README.md).
     ├── PREDICTION-DELETE.md              prediction committed before implementing DELETE
     ├── DEMO-SCRIPT.md                    what to record for the video
     ├── events/README.md                  where every HTTP element appears in the proxy event
-    └── examples/                          real requests, responses and direct invocations
+    ├── examples/                          real requests, responses and direct invocations
+    └── img/                               the evidence screenshots used below
 ```
 
 ---
@@ -217,8 +221,9 @@ A Spring Boot JAR would also add seconds of cold start for nothing.
 
 **What does the generated JAR contain?**
 A shaded ("fat") JAR: the 29 project classes plus `aws-lambda-java-core`,
-`aws-lambda-java-events`, `jackson-databind`, `jackson-core` and `jackson-annotations`, 3.3 MB in
-total. Lambda does not resolve Maven dependencies, so everything needed at runtime must be inside
+`aws-lambda-java-events`, `jackson-databind`, `jackson-core`, `jackson-annotations` and
+`joda-time` (pulled in transitively by the events library) — 3.3 MB in total, as the
+[package screenshot](#evidence) shows. Lambda does not resolve Maven dependencies, so everything needed at runtime must be inside
 the archive. There is no `Main-Class`: the entry point is the configured handler string.
 
 **Which parts of your application currently know about HTTP?**
@@ -717,6 +722,86 @@ responsibility live".
 
 ---
 
+## Evidence
+
+### Verified locally
+
+Each image is the terminal that produced it, and every command in them can be re-run from a clean
+clone with no AWS account.
+
+**1. The tests — `mvn clean test`**
+
+![mvn clean test: 78 tests, 0 failures, BUILD SUCCESS](docs/img/01-mvn-test.png)
+
+78 tests across the domain, the application, both adapters and the saved API Gateway events.
+
+**2. The artifact — `mvn package`**
+
+![mvn package: shaded JAR with 29 project classes](docs/img/02-mvn-package.png)
+
+The shaded JAR: 29 project classes plus the Lambda and Jackson libraries, 3.3 MB. The listing shows
+both adapters inside one artifact — the four Architecture A handlers and the three Architecture B
+classes — which is what lets five Lambda functions run from the same upload.
+
+**3. The HTTP contract — `tools/ReplayEvents.java`**
+
+![every status code produced by the proxy adapter](docs/img/03-http-semantics.png)
+
+The real proxy adapter answering every outcome the API can produce: `200`, `201` with its `Location`
+header, `204` with no body at all, `400` in its three flavours, `404` for both a missing order and an
+unknown route, and `405` with `Allow: GET, DELETE`. Reproduce it with:
+
+```bash
+cd orders-api && mvn -q -DskipTests package && cd ..
+java -cp orders-api/target/orders-api.jar tools/ReplayEvents.java
+```
+
+**4. The prediction really came first — `git log`**
+
+![git history showing the prediction committed before the DELETE implementation](docs/img/04-git-history.png)
+
+Section 17 asks for the prediction to be committed *before* implementing `DELETE`. The history shows
+`117b918 docs: prediction…` immediately before `8702915 feat: DELETE…`, and the per-file log confirms
+that `PREDICTION-DELETE.md` and `DeleteOrderHandler.java` entered the repository in that order.
+
+### Pending: the live AWS session
+
+These six need a logged-in AWS console or valid Academy credentials, so they are captured when the
+stack is deployed. Each file below is currently a labelled placeholder explaining what to capture;
+replacing the file **keeping the same name** updates this page with no edit to the README.
+
+| # | File | What it must show |
+| --- | --- | --- |
+| 10 | `docs/img/10-lambda-console.png` | the five functions in the Lambda console |
+| 11 | `docs/img/11-lambda-invoke.png` | `orders-get-order` invoked with `{"id":"ORD-1001"}` and its response |
+| 12 | `docs/img/12-apigw-mapping.png` | the mapping template of `GET /orders/{id}` (Architecture A) |
+| 13 | `docs/img/13-apigw-selection-pattern.png` | the `.*ORDER_NOT_FOUND.*` integration response producing the `404` |
+| 14 | `docs/img/14-apigw-proxy.png` | the proxy API resource tree, with nothing configured beyond "proxy integration: ON" |
+| 15 | `docs/img/15-smoke-test.png` | `scripts/smoke-test.sh proxy` passing against the deployed stage |
+
+```bash
+# the three commands that produce 10, 11 and 15
+scripts/deploy-lambdas.sh
+scripts/invoke-lambdas.sh
+scripts/deploy-api.sh && scripts/smoke-test.sh proxy
+```
+
+<details>
+<summary>Show the pending slots</summary>
+
+![](docs/img/10-lambda-console.png)
+![](docs/img/11-lambda-invoke.png)
+![](docs/img/12-apigw-mapping.png)
+![](docs/img/13-apigw-selection-pattern.png)
+![](docs/img/14-apigw-proxy.png)
+![](docs/img/15-smoke-test.png)
+
+</details>
+
+Images 12 and 13 are the ones worth looking at twice: they are where Architecture A keeps the two
+decisions that Architecture B keeps in Java — how a URL becomes a JSON document, and how a Java
+exception becomes a `404`.
+
 ## Deliverables
 
 | Required item | Where |
@@ -726,7 +811,8 @@ responsibility live".
 | Unit tests | [`orders-api/src/test/java`](orders-api/src/test/java) — 78 tests |
 | Lambda handlers | [`adapter/lambda/custom`](orders-api/src/main/java/com/eci/orders/adapter/lambda/custom) (A), [`adapter/lambda/proxy`](orders-api/src/main/java/com/eci/orders/adapter/lambda/proxy) (B) |
 | API Gateway configuration | [`infra/openapi-proxy.yaml`](infra/openapi-proxy.yaml), [`infra/openapi-custom.yaml`](infra/openapi-custom.yaml), [`infra/mapping-templates/`](infra/mapping-templates), [`infra/API-GATEWAY-SETUP.md`](infra/API-GATEWAY-SETUP.md) |
-| Example requests and responses | [`docs/examples/requests-responses.md`](docs/examples/requests-responses.md), [`docs/examples/lambda-direct-invocations.md`](docs/examples/lambda-direct-invocations.md) |
+| Example requests and responses | [`docs/examples/requests-responses.md`](docs/examples/requests-responses.md), [`docs/examples/lambda-direct-invocations.md`](docs/examples/lambda-direct-invocations.md), regenerable with [`tools/ReplayEvents.java`](tools/ReplayEvents.java) |
+| Evidence of the build, the tests and the API behaving | [Evidence](#evidence) — screenshots in [`docs/img/`](docs/img) |
 | Example API Gateway event | [`orders-api/src/test/resources/events/`](orders-api/src/test/resources/events) + [`docs/events/README.md`](docs/events/README.md) |
 | Architecture diagram | [above](#final-architecture-diagram) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Answers to the architectural questions | this README (Part 0, checkpoints 1–3, the comparison) |
