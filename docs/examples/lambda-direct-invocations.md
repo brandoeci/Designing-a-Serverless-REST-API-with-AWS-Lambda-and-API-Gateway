@@ -53,11 +53,17 @@ Both violations are reported in one response, so a client fixes the whole payloa
 
 | Input | Output |
 | --- | --- |
-| `{"customerId":"CUST-42"}` | `[{"id":"ORD-1001",...},{"id":"ORD-1002",...}]` |
+| `{"customerId":"CUST-42"}` | `[{"id":"ORD-1001","customerId":"CUST-42","product":"MacBook Air","quantity":1},{"id":"ORD-1002","customerId":"CUST-42","product":"Magic Keyboard","quantity":2},{"id":"ORD-106C66C0","customerId":"CUST-42","product":"MacBook Air","quantity":1}]` |
 | `{"customerId":"CUST-100"}` | `[]` |
 | `{"customerId":null}` | **function error**: `errorMessage = {"error":"MISSING_QUERY_PARAMETER","message":"Query parameter customerId is required"}` |
 
 `[]` is a success: the customer exists as a concept and simply has no orders.
+
+The first row has **three** orders, not the two that were seeded: `ORD-106C66C0` is the order the
+`POST` above created, and the same warm container served both calls. On a cold container, or when
+another container answers, that third order is simply not there. That is ephemeral in-memory storage
+behaving exactly as documented — and the reason `scripts/smoke-test.sh` treats "read back the order
+I just created" as a warning rather than a failure.
 
 ## DELETE — remove an order
 

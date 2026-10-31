@@ -463,7 +463,8 @@ explicit methods and documents the consequence rather than hiding it.
 
 ## Comparing the two architectures
 
-Both are deployed, from the same JAR, serving the same contract.
+Both are fully implemented and deployed from the same JAR by `scripts/deploy-api.sh`, serving the
+same contract. The counts below are measured from this repository, not estimated.
 
 | | A — gateway transformation | B — proxy integration |
 | --- | --- | --- |
