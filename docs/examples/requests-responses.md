@@ -1,9 +1,10 @@
 # Example requests and responses
 
-Every exchange below is the real behaviour of the handler code: the bodies and headers were
-produced by running the packaged JAR locally (`mvn package`, then the handlers invoked with the
-saved API Gateway events) and the same assertions run on every `mvn test`. After deploying, the
-same cases are replayed against the live API by `scripts/smoke-test.sh`.
+Every exchange below is real behaviour, not an illustration. The bodies and headers come from
+running the packaged JAR (`mvn package`, then the handlers invoked with the saved API Gateway
+events), the same assertions run on every `mvn test`, and every one of these cases was replayed
+over HTTPS against both deployed APIs with `scripts/smoke-test.sh` — see the screenshots in the
+[README](../../README.md#evidence).
 
 Set the base URL once:
 

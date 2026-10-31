@@ -14,6 +14,9 @@ cd "${PROJECT_DIR}"
 
 [[ -f "${JAR_RELATIVE_PATH}" ]] || die "Missing ${JAR_RELATIVE_PATH}. Run scripts/build.sh first."
 
+EXECUTION_ROLE_ARN="$(execution_role_arn)"
+info "execution role: ${EXECUTION_ROLE_ARN}"
+
 deploy_function() {
   local name="$1" handler="$2" description="$3"
 

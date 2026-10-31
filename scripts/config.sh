@@ -11,10 +11,26 @@ REGION="${REGION:-$(aws configure get region 2>/dev/null || echo us-east-1)}"
 
 ACCOUNT_ID="${ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 
-# AWS Academy / Learner Lab does not allow creating IAM roles, but it provides LabRole, which
-# already has the permissions a Lambda needs (including CloudWatch Logs). On a normal account,
-# export EXECUTION_ROLE_ARN with your own role.
-EXECUTION_ROLE_ARN="${EXECUTION_ROLE_ARN:-arn:aws:iam::${ACCOUNT_ID}:role/LabRole}"
+# The role the functions run as. Two kinds of account need two different answers:
+#   - AWS Academy / Learner Lab forbids creating roles but provides LabRole;
+#   - a personal or organisation account has no LabRole, so scripts/create-execution-role.sh
+#     creates orders-api-lambda-role.
+# Resolved at deployment time rather than here, because a student in Academy is usually not
+# allowed to call iam:GetRole and this must not fail for them.
+execution_role_arn() {
+  if [[ -n "${EXECUTION_ROLE_ARN:-}" ]]; then
+    echo "${EXECUTION_ROLE_ARN}"
+    return
+  fi
+  for candidate in LabRole orders-api-lambda-role; do
+    if aws iam get-role --role-name "${candidate}" >/dev/null 2>&1; then
+      echo "arn:aws:iam::${ACCOUNT_ID}:role/${candidate}"
+      return
+    fi
+  done
+  # iam:GetRole denied, or neither role exists: assume Academy, and let Lambda report the truth.
+  echo "arn:aws:iam::${ACCOUNT_ID}:role/LabRole"
+}
 
 # ---------------------------------------------------------------- artifact
 

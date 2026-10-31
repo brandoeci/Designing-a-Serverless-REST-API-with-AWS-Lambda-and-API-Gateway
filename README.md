@@ -4,7 +4,8 @@ Order Management API built twice on purpose: once with **API Gateway doing the H
 (custom/non-proxy integration) and once with **a thin HTTP adapter in Java** (Lambda proxy
 integration), on top of one application that knows nothing about either.
 
-Java 17 · Maven · AWS Lambda · Amazon API Gateway · JUnit 5 · 78 tests
+Java 17 · Maven · AWS Lambda · Amazon API Gateway · JUnit 5 · 78 tests · [deployed and verified on
+AWS](#evidence)
 
 ```
 POST    /orders                        201
@@ -51,6 +52,7 @@ mvn package                       # -> target/orders-api.jar (shaded, 3.3 MB)
 
 # 2. Deploy (from the repository root, Git Bash on Windows)
 scripts/build.sh
+scripts/create-execution-role.sh  # skip in AWS Academy, which provides LabRole
 scripts/deploy-lambdas.sh         # 5 functions from the same JAR
 scripts/invoke-lambdas.sh         # Part II: Lambda alone, no HTTP
 scripts/deploy-api.sh             # both APIs, from infra/openapi-*.yaml
@@ -59,9 +61,14 @@ scripts/smoke-test.sh custom
 scripts/teardown.sh               # delete everything
 ```
 
-Prerequisites: JDK 17+, Maven 3.8+, AWS CLI v2 with valid credentials.
-In AWS Academy the scripts use the pre-existing `LabRole`, because the lab does not allow creating
-IAM roles; see [`scripts/README.md`](scripts/README.md).
+Prerequisites: JDK 17+, Maven 3.8+, AWS CLI v2 with valid credentials. Every script takes its
+settings from the environment, so another region is just `REGION=us-east-2 scripts/deploy-api.sh`.
+
+The execution role differs by account type, and the scripts resolve it automatically: AWS Academy
+forbids creating IAM roles and provides `LabRole`, while a personal account has none, so
+`create-execution-role.sh` makes `orders-api-lambda-role` with `AWSLambdaBasicExecutionRole` and
+nothing else — the application talks to no AWS service, so it needs no other permission. See
+[`scripts/README.md`](scripts/README.md).
 
 ## Repository layout
 
@@ -90,7 +97,7 @@ IAM roles; see [`scripts/README.md`](scripts/README.md).
 │   ├── openapi-custom.yaml               Architecture A, with mapping templates inline
 │   ├── mapping-templates/*.vtl           the same templates, standalone and commented
 │   └── API-GATEWAY-SETUP.md              console walkthrough + CLI equivalents
-├── scripts/                              build, deploy, invoke, smoke-test, teardown
+├── scripts/                              build, role, deploy, invoke, smoke-test, teardown
 ├── tools/
 │   └── ReplayEvents.java                 replays the saved events through the real adapter
 └── docs/
@@ -714,11 +721,11 @@ BUILD SUCCESS
 | `OrdersApiHandlerTest` | 26 | Architecture B: every status code, `Location`, `Allow`, `204` with no body, malformed JSON, base64 body, missing parameter, unknown route, null event, 500 |
 | `ProxyEventFixturesTest` | 4 | the saved API Gateway events still work against the real handler |
 
-What tests cannot cover, and is therefore verified against a deployed stage by
-`scripts/smoke-test.sh`: Architecture A's selection patterns (whether `ORDER_NOT_FOUND` really
+What tests cannot cover: Architecture A's selection patterns (whether `ORDER_NOT_FOUND` really
 becomes a `404`), the VTL templates themselves, and the gateway's own `403` for undeclared methods.
-Knowing exactly where the untested boundary is, is part of the answer to "where should each
-responsibility live".
+Those were verified the only way they can be — against a deployed stage, with
+`scripts/smoke-test.sh`, and the result is in [Evidence](#evidence). Knowing exactly where the
+untested boundary lies is itself part of the answer to "where should each responsibility live".
 
 ---
 
@@ -764,43 +771,71 @@ Section 17 asks for the prediction to be committed *before* implementing `DELETE
 `117b918 docs: prediction…` immediately before `8702915 feat: DELETE…`, and the per-file log confirms
 that `PREDICTION-DELETE.md` and `DeleteOrderHandler.java` entered the repository in that order.
 
-### Pending: the live AWS session
+### Deployed and verified on AWS
 
-These six need a logged-in AWS console or valid Academy credentials, so they are captured when the
-stack is deployed. Each file below is currently a labelled placeholder explaining what to capture;
-replacing the file **keeping the same name** updates this page with no edit to the README.
+Both architectures were deployed to a real account in **us-east-2** and exercised over HTTPS. The
+scripts in [`scripts/`](scripts) are exactly what produced this.
 
-| # | File | What it must show |
-| --- | --- | --- |
-| 10 | `docs/img/10-lambda-console.png` | the five functions in the Lambda console |
-| 11 | `docs/img/11-lambda-invoke.png` | `orders-get-order` invoked with `{"id":"ORD-1001"}` and its response |
-| 12 | `docs/img/12-apigw-mapping.png` | the mapping template of `GET /orders/{id}` (Architecture A) |
-| 13 | `docs/img/13-apigw-selection-pattern.png` | the `.*ORDER_NOT_FOUND.*` integration response producing the `404` |
-| 14 | `docs/img/14-apigw-proxy.png` | the proxy API resource tree, with nothing configured beyond "proxy integration: ON" |
-| 15 | `docs/img/15-smoke-test.png` | `scripts/smoke-test.sh proxy` passing against the deployed stage |
+**5. The five functions, one artifact**
 
-```bash
-# the three commands that produce 10, 11 and 15
-scripts/deploy-lambdas.sh
-scripts/invoke-lambdas.sh
-scripts/deploy-api.sh && scripts/smoke-test.sh proxy
-```
+![The five Lambda functions in the AWS console](docs/img/10-lambda-console.png)
 
-<details>
-<summary>Show the pending slots</summary>
+Four functions for Architecture A and one for Architecture B, all Java 17, all uploaded from the
+same `orders-api.jar`. The description column shows which operation each one serves; the only thing
+that differs between them is the configured handler string.
 
-![](docs/img/10-lambda-console.png)
-![](docs/img/11-lambda-invoke.png)
-![](docs/img/12-apigw-mapping.png)
-![](docs/img/13-apigw-selection-pattern.png)
-![](docs/img/14-apigw-proxy.png)
-![](docs/img/15-smoke-test.png)
+**6. A Lambda invoked on its own, with no HTTP anywhere**
 
-</details>
+![The orders-get-order function returning an order from the console test tab](docs/img/11-lambda-invoke.png)
 
-Images 12 and 13 are the ones worth looking at twice: they are where Architecture A keeps the two
-decisions that Architecture B keeps in Java — how a URL becomes a JSON document, and how a Java
-exception becomes a `404`.
+`{"id": "ORD-1001"}` in, the order out. No gateway, no URL, no status code — the runtime mapped JSON
+to `OrderIdInput` and the returned `OrderView` back to JSON, which is the Part II investigation made
+visible.
+
+**7. Architecture A: a URL becoming a JSON document**
+
+![The mapping template that turns the path parameter into a JSON document](docs/img/12-apigw-mapping.png)
+
+The mapping template on `GET /orders/{id}`. This single line is why `GetOrderHandler` never sees a
+URL.
+
+**8. Architecture A: a Java exception becoming a 404**
+
+![The integration response matching ORDER_NOT_FOUND and returning 404](docs/img/13-apigw-selection-pattern.png)
+
+The regular expression `.*ORDER_NOT_FOUND.*` matched against the failed invocation's `errorMessage`,
+mapped to status **404**. This is the decision that lives in the console in Architecture A and in
+`HttpResponses.java` in Architecture B — and the reason no unit test can protect it.
+
+**9. Architecture B: nothing configured at all**
+
+![The proxy integration showing Lambda proxy integration set to true](docs/img/14-apigw-proxy.png)
+
+The same operation in the proxy API: *Integración de proxy de Lambda: Verdadero*, pointing at
+`orders-api-proxy`. No mapping template, no integration response, no selection pattern — compare the
+emptiness of this screen with the two above.
+
+**10. Both APIs answering over HTTPS**
+
+![Seventeen passing checks against the two deployed APIs](docs/img/15-smoke-test.png)
+
+Seventeen checks, zero failures, against the deployed stages: `200`, `201`, `204`, `400` in its
+three forms and `404` for both a missing order and a missing deletion target — produced by two
+completely different gateway configurations serving one unchanged application.
+
+What the deployment confirmed that local tests could not:
+
+* the VTL mapping templates are correct — the path and the query string really do arrive as
+  `{"id": ...}` and `{"customerId": ...}`;
+* the selection patterns really do turn `ORDER_NOT_FOUND` into `404` and `VALIDATION_ERROR` into
+  `400`;
+* the `204` empty-response template really does drop the `null` that `DeleteOrderHandler` returns;
+* and the documented limitation is real: the `201` from Architecture A arrives **without** a
+  `Location` header, while Architecture B sets it. That was predicted from the mapping rules before
+  anything was deployed, and the deployment proved it.
+
+The invoke URLs are deliberately not published here: they are public endpoints on a personal
+account, and `scripts/teardown.sh` removes everything when the demo is over.
 
 ## Deliverables
 

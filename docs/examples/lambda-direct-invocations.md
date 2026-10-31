@@ -19,9 +19,13 @@ aws lambda invoke \
 
 The outputs below were produced by running the packaged artifact
 (`java -cp orders-api/target/orders-api.jar ...`) through the same handler classes and the same
-Jackson mapping the AWS runtime performs, so they are real responses rather than illustrations. A
-deployed function answers identically, except that generated ids differ: they are random by design
-(see `UuidOrderIdGenerator`).
+Jackson mapping the AWS runtime performs, so they are real responses rather than illustrations.
+
+They were then confirmed against the deployed functions: every case in this file was replayed with
+`aws lambda invoke` on `orders-get-order`, `orders-create-order`,
+`orders-find-orders-by-customer` and `orders-delete-order` in `us-east-2`, and the payloads matched
+byte for byte — except the generated ids, which are random by design (see `UuidOrderIdGenerator`).
+The console view of one such invocation is in the [README](../../README.md#evidence).
 
 ## GET — one order
 

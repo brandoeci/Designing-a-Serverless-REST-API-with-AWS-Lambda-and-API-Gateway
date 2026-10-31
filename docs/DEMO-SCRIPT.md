@@ -8,9 +8,10 @@ Before recording: refresh the AWS Academy credentials (`AWS Details → AWS CLI`
 `~/.aws/credentials`) and run `scripts/build.sh` once, so Maven's downloads do not appear in the
 video.
 
-While recording, take the six screenshots the README is still waiting for — they are the same
-moments, so it costs nothing extra. Each one is marked **[shot NN]** below; save it over
-`docs/img/NN-*.png` keeping the file name, and the README picks it up with no edit.
+The screenshots in the README are already captured from a real deployment, so nothing here is
+blocked on them. The **[shot NN]** markers below point at the moment each one came from: use them
+to find your place while recording, and if you redeploy and want your own captures, save them over
+`docs/img/NN-*.png` keeping the file names and the README picks them up with no edit.
 
 ---
 
@@ -169,4 +170,3 @@ gateway configuration changed.*
 - [ ] `204` and `404` for `DELETE`
 - [ ] both architectures answering identically
 - [ ] the architecture diagram, explained
-- [ ] the six screenshots saved over `docs/img/10-*.png` … `docs/img/15-*.png`

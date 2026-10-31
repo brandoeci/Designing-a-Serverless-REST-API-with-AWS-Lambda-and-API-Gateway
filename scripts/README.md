@@ -6,6 +6,7 @@ idempotent: running it twice updates instead of duplicating.
 | Script | What it does | Needs AWS credentials |
 | --- | --- | --- |
 | `build.sh` | `mvn clean package` and shows the artifact | no |
+| `create-execution-role.sh` | creates the Lambda execution role (not needed in AWS Academy) | yes |
 | `deploy-lambdas.sh` | creates/updates the five functions from the same JAR | yes |
 | `invoke-lambdas.sh` | invokes the functions directly with JSON (Part II) | yes |
 | `deploy-api.sh` | imports both REST APIs from `infra/*.yaml`, deploys the stage, grants invoke permission | yes |
@@ -17,6 +18,7 @@ idempotent: running it twice updates instead of duplicating.
 
 ```bash
 scripts/build.sh
+scripts/create-execution-role.sh   # personal accounts only; Academy provides LabRole
 scripts/deploy-lambdas.sh
 scripts/invoke-lambdas.sh          # Part II: Lambda alone, no HTTP
 scripts/deploy-api.sh              # Parts III-V: both architectures
@@ -42,11 +44,14 @@ relative on purpose, because a Windows `aws.exe` does not understand a `/c/...` 
 * Credentials expire after a few hours. When a script reports `ExpiredToken`, open the lab, click
   **AWS Details → AWS CLI** and paste the block into `~/.aws/credentials`.
 * The lab does not allow creating IAM roles, so the scripts use the pre-existing `LabRole`. On a
-  personal account, export your own role instead:
+  personal account, run `create-execution-role.sh` once, or export a role you already have:
 
   ```bash
   export EXECUTION_ROLE_ARN=arn:aws:iam::123456789012:role/my-lambda-role
   ```
+
+  `deploy-lambdas.sh` resolves the role in that order: the exported variable, then `LabRole`, then
+  `orders-api-lambda-role`.
 
 * Everything else is configurable the same way:
 
