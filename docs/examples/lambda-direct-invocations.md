@@ -59,6 +59,18 @@ Both violations are reported in one response, so a client fixes the whole payloa
 
 `[]` is a success: the customer exists as a concept and simply has no orders.
 
+## DELETE — remove an order
+
+| Input | Output |
+| --- | --- |
+| `{"id":"ORD-1003"}` | `null` — the handler returns `Void`, and the runtime writes the literal `null` |
+| `{"id":"ORD-999"}` | **function error**: `errorMessage = {"error":"ORDER_NOT_FOUND","message":"Order ORD-999 does not exist"}` |
+
+That `null` is why the `204` integration response in Architecture A needs an **empty** response
+template: a `204` must not carry a body, and without the empty template the client would receive the
+four characters `null`. Architecture B has no such problem —
+`HttpResponses.noContent()` simply sets no body at all.
+
 ## The proxy function, invoked without a gateway
 
 ```bash
@@ -76,7 +88,15 @@ aws lambda invoke \
 }
 ```
 
-Same application, same data, but the payload in and out is now a whole HTTP exchange.
+Same application, same data, but the payload in and out is now a whole HTTP exchange. Replaying
+`delete-order.json` through the same function returns the shortest response in the project, and the
+one that carries the most meaning:
+
+```json
+{ "statusCode": 204 }
+```
+
+No `headers`, no `body` — the adapter does not invent either.
 
 ---
 

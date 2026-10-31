@@ -130,6 +130,55 @@ Content-Type: application/json; charset=utf-8
 {"error":"MISSING_QUERY_PARAMETER","message":"Query parameter customerId is required"}
 ```
 
+## 204 No Content — delete an order
+
+```bash
+curl -i -X DELETE "$BASE/orders/ORD-1003"
+```
+
+```http
+HTTP/1.1 204 No Content
+```
+
+No body and no `Content-Type`: there is nothing to describe. The order is really gone, so a
+following `GET /orders/ORD-1003` answers `404`.
+
+## 404 Not Found — delete an order that does not exist
+
+```bash
+curl -i -X DELETE "$BASE/orders/ORD-999"
+```
+
+```http
+HTTP/1.1 404 Not Found
+Content-Type: application/json; charset=utf-8
+
+{"error":"ORDER_NOT_FOUND","message":"Order ORD-999 does not exist"}
+```
+
+Deleting twice gives the same `404`: the operation is deliberately not idempotent, so a client finds
+out when it was wrong about the state of the system.
+
+## 405 Method Not Allowed — right resource, wrong method
+
+```bash
+curl -i -X PUT "$BASE/orders/ORD-1001"
+```
+
+In Architecture B, when the method is routed to the Lambda:
+
+```http
+HTTP/1.1 405 Method Not Allowed
+Content-Type: application/json; charset=utf-8
+Allow: GET, DELETE
+
+{"error":"METHOD_NOT_ALLOWED","message":"PUT is not supported on /orders/{id}"}
+```
+
+With only the four documented methods declared in API Gateway, `PUT` never reaches the Lambda and
+the gateway answers `403 Missing Authentication Token` itself. The trade-off is discussed in the
+README.
+
 ## 404 Not Found — no such resource
 
 ```bash

@@ -9,7 +9,7 @@ from AWS.
 ```mermaid
 graph TD
     subgraph aws["Knows about AWS / HTTP"]
-        CUSTOM["adapter.lambda.custom<br/>4 handlers, ApiError, input DTOs"]
+        CUSTOM["adapter.lambda.custom<br/>4 handlers, ApiError,<br/>CustomErrorMapper, input DTOs"]
         PROXY["adapter.lambda.proxy<br/>OrdersApiHandler, Routes, HttpResponses"]
         DTO["adapter.dto / adapter.json<br/>OrderView, ErrorBody, ErrorCode, Json"]
     end
@@ -72,8 +72,9 @@ sequenceDiagram
     GW->>Client: 404 {"error":"ORDER_NOT_FOUND","message":"..."}
 ```
 
-Four Lambda functions, each with its own mapping template, four method responses and four
-integration responses. Thirteen pieces of gateway configuration for three operations.
+Four Lambda functions for four operations, three request mapping templates (the `GET` one is reused
+by the `DELETE`), two response templates, and four method responses plus four integration responses
+*per method* — 35 pieces of gateway configuration in total.
 
 ## Architecture B — proxy integration
 
@@ -96,8 +97,8 @@ sequenceDiagram
     GW->>Client: 404 {"error":"ORDER_NOT_FOUND","message":"..."}
 ```
 
-One Lambda function, four routes declared in the gateway, and all HTTP decisions in two small Java
-files (`Routes`, `HttpResponses`).
+One Lambda function, four methods declared in the gateway, and every HTTP decision in two small
+Java files (`Routes`, `HttpResponses`) plus the router inside `OrdersApiHandler`.
 
 ## Responsibility matrix
 
@@ -114,6 +115,7 @@ files (`Routes`, `HttpResponses`).
 | Error body | Lambda (`ApiError`) + response template | `HttpResponses.error()` |
 | `Location` header | not possible without leaking URLs into the Lambda | `HttpResponses.created()` |
 | `Allow` header on 405 | not implemented (gateway answers 403) | `HttpResponses.methodNotAllowed()` |
+| Dropping the body of a 204 | API Gateway (empty response template) | `HttpResponses.noContent()` |
 | Business validation | `OrderService` / `CreateOrderValidator` | same |
 | Business rules and data | `OrderService`, `Order`, repository | same |
 
@@ -124,7 +126,7 @@ style changed the adapter and the gateway configuration, and nothing else.
 
 ```
 orders-api.jar (3.3 MB, shaded)
-├── com/eci/orders/...                 37 application + adapter classes
+├── com/eci/orders/...                 29 application + adapter classes
 ├── com/amazonaws/services/lambda/...  aws-lambda-java-core, aws-lambda-java-events
 └── com/fasterxml/jackson/...          jackson-core, jackson-databind, jackson-annotations
 ```

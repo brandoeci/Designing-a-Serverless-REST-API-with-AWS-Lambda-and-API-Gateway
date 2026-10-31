@@ -4,12 +4,13 @@ Order Management API built twice on purpose: once with **API Gateway doing the H
 (custom/non-proxy integration) and once with **a thin HTTP adapter in Java** (Lambda proxy
 integration), on top of one application that knows nothing about either.
 
-Java 17 · Maven · AWS Lambda · Amazon API Gateway · JUnit 5 · 63 tests
+Java 17 · Maven · AWS Lambda · Amazon API Gateway · JUnit 5 · 78 tests
 
 ```
 POST    /orders                        201
 GET     /orders/{id}                   200 / 404
 GET     /orders?customerId={id}        200 / 400
+DELETE  /orders/{id}                   204 / 404
 ```
 
 The question this repository tries to answer is not "does it work" but **where should each
@@ -30,6 +31,8 @@ made.
 | [Parts III & IV — Architecture A](#parts-iii--iv--architecture-a-api-gateway-does-the-mapping) | mapping templates, HTTP semantics, checkpoint 3 |
 | [Part V — Architecture B](#part-v--architecture-b-lambda-proxy-integration) | the HTTP adapter |
 | [Comparing the two architectures](#comparing-the-two-architectures) | the eight questions |
+| [Final challenge — `DELETE /orders/{id}`](#final-challenge--delete-ordersid) | prediction vs outcome |
+| [The final API](#the-final-api) | every operation and status code |
 | [AI-assisted development](#ai-assisted-development) | how the assistant was used and where it was wrong |
 | [Final architecture diagram](#final-architecture-diagram) | required diagram |
 | [Testing](#testing) | what is covered and how |
@@ -47,10 +50,10 @@ mvn package                       # -> target/orders-api.jar (shaded, 3.3 MB)
 
 # 2. Deploy (from the repository root, Git Bash on Windows)
 scripts/build.sh
-scripts/deploy-lambdas.sh         # 4 functions from the same JAR
+scripts/deploy-lambdas.sh         # 5 functions from the same JAR
 scripts/invoke-lambdas.sh         # Part II: Lambda alone, no HTTP
 scripts/deploy-api.sh             # both APIs, from infra/openapi-*.yaml
-scripts/smoke-test.sh proxy       # checks 200 / 201 / 400 / 404 over HTTP
+scripts/smoke-test.sh proxy       # checks 200 / 201 / 204 / 400 / 404 over HTTP
 scripts/smoke-test.sh custom
 scripts/teardown.sh               # delete everything
 ```
@@ -79,7 +82,7 @@ IAM roles; see [`scripts/README.md`](scripts/README.md).
 │       │           ├── custom/           Architecture A: one handler per operation
 │       │           └── proxy/            Architecture B: OrdersApiHandler, Routes, HttpResponses
 │       └── test/
-│           ├── java/...                  63 tests, none of which need AWS
+│           ├── java/...                  78 tests, none of which need AWS
 │           └── resources/events/          real API Gateway proxy events, replayed by a test
 ├── infra/
 │   ├── openapi-proxy.yaml                Architecture B, importable into API Gateway
@@ -91,6 +94,7 @@ IAM roles; see [`scripts/README.md`](scripts/README.md).
     ├── API-CONTRACT.md                   the contract, designed before any code
     ├── ARCHITECTURE.md                   diagrams, responsibility matrix, dependency rules
     ├── AI-REVIEW.md                      critique of the assistant's decisions
+    ├── PREDICTION-DELETE.md              prediction committed before implementing DELETE
     ├── DEMO-SCRIPT.md                    what to record for the video
     ├── events/README.md                  where every HTTP element appears in the proxy event
     └── examples/                          real requests, responses and direct invocations
@@ -108,6 +112,9 @@ The full contract is in [`docs/API-CONTRACT.md`](docs/API-CONTRACT.md) and, mach
 | Create an order | `POST /orders` + JSON body | `201` + order + `Location` | `400`, `500` |
 | Retrieve an order | `GET /orders/{id}` | `200` + order | `400`, `404`, `500` |
 | Find a customer's orders | `GET /orders?customerId=CUST-42` | `200` + array (may be `[]`) | `400`, `500` |
+
+A fourth operation, `DELETE /orders/{id}`, was added later by the
+[final challenge](#final-challenge--delete-ordersid).
 
 Every error, in either architecture, is the same document:
 
@@ -209,7 +216,7 @@ wiring is three lines in
 A Spring Boot JAR would also add seconds of cold start for nothing.
 
 **What does the generated JAR contain?**
-A shaded ("fat") JAR: the 37 project classes plus `aws-lambda-java-core`,
+A shaded ("fat") JAR: the 29 project classes plus `aws-lambda-java-core`,
 `aws-lambda-java-events`, `jackson-databind`, `jackson-core` and `jackson-annotations`, 3.3 MB in
 total. Lambda does not resolve Maven dependencies, so everything needed at runtime must be inside
 the archive. There is no `Main-Class`: the entry point is the configured handler string.
@@ -225,13 +232,14 @@ application tests still pass.
 
 ## Part II — Running it on AWS Lambda
 
-Four functions, **one artifact**: the configured handler string is what selects the entry point.
+Five functions, **one artifact**: the configured handler string is what selects the entry point.
 
 | Function | Handler | Architecture |
 | --- | --- | --- |
 | `orders-get-order` | `...custom.GetOrderHandler::handleRequest` | A |
 | `orders-create-order` | `...custom.CreateOrderHandler::handleRequest` | A |
 | `orders-find-orders-by-customer` | `...custom.FindOrdersByCustomerHandler::handleRequest` | A |
+| `orders-delete-order` | `...custom.DeleteOrderHandler::handleRequest` | A |
 | `orders-api-proxy` | `...proxy.OrdersApiHandler::handleRequest` | B |
 
 Runtime Java 17, 512 MB (more memory means more CPU, which shortens a Java cold start), 15 s
@@ -334,6 +342,7 @@ commented in [`infra/mapping-templates/`](infra/mapping-templates/); the console
 | `GET /orders/{id}` | [`get-order-request.vtl`](infra/mapping-templates/get-order-request.vtl) | `{"id":"ORD-1001"}` |
 | `GET /orders?customerId=` | [`find-orders-request.vtl`](infra/mapping-templates/find-orders-request.vtl) | `{"customerId":"CUST-42"}` or `{"customerId":null}` |
 | `POST /orders` | [`create-order-request.vtl`](infra/mapping-templates/create-order-request.vtl) | `{"customerId":...,"product":...,"quantity":...}` |
+| `DELETE /orders/{id}` | the same `get-order-request.vtl` | `{"id":"ORD-1003"}` |
 
 The `POST` template copies the three known fields explicitly instead of passing the body through
 with `$input.json('$')`. That is deliberate: a client cannot smuggle extra fields into the function,
@@ -458,18 +467,18 @@ Both are deployed, from the same JAR, serving the same contract.
 
 | | A — gateway transformation | B — proxy integration |
 | --- | --- | --- |
-| Lambda functions | 3 | 1 |
-| Mapping templates | 3 request + 2 response | 0 |
-| Method + integration responses | 12 + 12 | 0 |
-| Java classes that mention HTTP | 0 (but 4 that mention a gateway convention) | 3 |
+| Lambda functions | 4 | 1 |
+| Mapping templates | 3 request (one reused twice) + 2 response | 0 |
+| Method + integration responses | 16 + 16 | 0 |
+| Java classes that mention HTTP | 0 (but 5 that encode a gateway convention) | 3 |
 | Status codes visible in `mvn test` | none | all |
 | `Location` header | not expressible | one line |
-| Lines of gateway config per new operation | ~30 | ~8 (one method) |
-| Lines of Java per new operation | ~12 | ~6 (one `case`) |
+| Gateway config for the 4th operation (measured) | 45 lines of OpenAPI + a new function | 20 lines (one method) |
+| Java for the 4th operation (measured) | a new 44-line handler | 6 lines |
 
 **Which approach required more API Gateway configuration?**
-A, by a wide margin: 3 request templates, 2 response templates, 12 method responses and 12
-integration responses with 9 regular expressions, versus 3 methods pointing at one function.
+A, by a wide margin: 3 request templates, 2 response templates, 16 method responses and 16
+integration responses with 12 regular expressions, versus 4 methods pointing at one function.
 
 **Which approach required more Java infrastructure code?**
 B: `Routes`, `HttpResponses` and the routing/error-mapping inside `OrdersApiHandler`, about 200 lines
@@ -491,8 +500,10 @@ A: in the gateway — success codes in the integration response, failure codes i
 in a file you can read, diff and review.
 
 **What happens if the API grows from 3 operations to 30?**
-A grows linearly in *configuration*: 30 functions, 30 templates, ~120 method/integration responses,
-~270 regular expressions — and 30 deployment units to version together. That is where
+Adding the fourth operation already measured it: 45 lines of gateway configuration and a new
+function in A, versus 20 lines and no new function in B. Extrapolated, A grows linearly in
+*configuration*: 30 functions, 30 templates, ~120 method/integration responses, ~360 regular
+expressions — and 30 deployment units to version together. That is where
 infrastructure-as-code stops being optional and a console becomes untenable. B grows linearly in
 *code*: 30 `case` branches in a router that is still one deployment unit, with one risk A does not
 have — a single function whose cold start, memory and concurrency are shared by every operation, so
@@ -524,6 +535,65 @@ Java at all (API Gateway calling DynamoDB or SQS directly), or a function invoke
 sources where an HTTP event shape would be noise.
 
 ---
+
+## Final challenge — `DELETE /orders/{id}`
+
+```
+DELETE /orders/ORD-1003   ->  204 No Content   (no body, no Content-Type)
+DELETE /orders/ORD-999    ->  404 Not Found    {"error":"ORDER_NOT_FOUND","message":"..."}
+```
+
+As section 17 requires, a prediction was written and **committed before** the implementation —
+`git log --oneline` shows `docs: prediction for DELETE /orders/{id}` immediately before
+`feat: DELETE /orders/{id}`. Prediction and outcome are side by side in
+[`docs/PREDICTION-DELETE.md`](docs/PREDICTION-DELETE.md).
+
+What it got right: the five files that change, that `OrderIdInput` and the `GET` mapping template
+are reusable as-is, that Architecture A needs a new Lambda and Architecture B does not, that the
+`Void` return has to be dropped by an empty response template so a `204` carries no body, and that
+the `Allow` header for `/orders/{id}` becomes `GET, DELETE` (an existing test failed until it was
+updated — which is what tests are for).
+
+What it missed: adding `deleteById` to the `OrderRepository` port broke **every** implementation,
+including the fake used in the 500 test. Cheap to find, since it stops compiling, but a real cost of
+a non-`default` interface method that the prediction had not counted.
+
+The deliberate design decision: `deleteOrder` is **not idempotent**. The application answers "did
+this order exist?" by throwing `OrderNotFoundException`; the adapter turns that into `404`. Always
+answering `204` is the other defensible choice — quieter retries at the cost of hiding client bugs —
+and it is recorded as a trade-off in [`docs/API-CONTRACT.md`](docs/API-CONTRACT.md) rather than being
+decided silently.
+
+The best evidence for the whole comparison is that **Architecture B needed no new error-mapping code
+at all**: the existing `catch (OrderNotFoundException)` already produced the `404`, and
+`HttpResponses.noContent()` already existed. One `case` in a `switch`.
+
+## The final API
+
+| Operation | Success | Errors | Verified by |
+| --- | --- | --- | --- |
+| `POST /orders` | `201` + body + `Location` | `400` | 7 unit tests + `smoke-test.sh` |
+| `GET /orders/{id}` | `200` + body | `400`, `404` | 4 unit tests + `smoke-test.sh` |
+| `GET /orders?customerId=` | `200` + array (may be `[]`) | `400` | 5 unit tests + `smoke-test.sh` |
+| `DELETE /orders/{id}` | `204`, no body | `400`, `404` | 5 unit tests + `smoke-test.sh` |
+| any other method on a known resource | — | `405` + `Allow` | 3 unit tests |
+| any unknown path routed to the Lambda | — | `404 ROUTE_NOT_FOUND` | 1 unit test |
+
+**What happens on an unexpected internal error?** The client always gets exactly this, and never
+anything more:
+
+```json
+{ "error": "INTERNAL_ERROR", "message": "An unexpected error occurred" }
+```
+
+with status `500`. In Architecture B, `OrdersApiHandler` catches `RuntimeException`, logs the real
+exception to CloudWatch through `context.getLogger()`, and returns the generic document — so a bug
+cannot leak a stack trace, a Java class name or the identity of a failing dependency, and API
+Gateway never has to produce a `502` because the handler always returns a well-formed response. In
+Architecture A, `CustomErrorMapper` does the same classification and the gateway maps
+`.*INTERNAL_ERROR.*` to `500`. Both paths are covered by a test that injects a store which throws
+(`BrokenOrderRepository`), and both assert that the message does not contain the internal failure
+text.
 
 ## AI-assisted development
 
@@ -625,18 +695,18 @@ cd orders-api && mvn test
 ```
 
 ```
-Tests run: 63, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 78, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-| Test class | What it protects |
-| --- | --- |
-| `OrderTest` | domain invariants: blank id/customer/product, non-positive quantity, value semantics |
-| `OrderServiceTest` | the use cases: creation, retrieval, missing order, search, empty result, every invalid input, all-violations-at-once |
-| `InMemoryOrderRepositoryTest` | storage behaviour: replace on same id, filter by customer, ordering, seeding |
-| `CustomIntegrationHandlersTest` | Architecture A: returned documents, the error code inside every `ApiError`, `INTERNAL_ERROR` leaking nothing |
-| `OrdersApiHandlerTest` | Architecture B: every status code, `Location`, `Allow`, malformed JSON, base64 body, missing parameter, unknown route, null event, 500 |
-| `ProxyEventFixturesTest` | the saved API Gateway events still work against the real handler |
+| Test class | Tests | What it protects |
+| --- | --- | --- |
+| `OrderTest` | 8 | domain invariants: blank id/customer/product, non-positive quantity, value semantics |
+| `OrderServiceTest` | 20 | the use cases: creation, retrieval, missing order, search, empty result, deletion, non-idempotent double delete, every invalid input, all-violations-at-once |
+| `InMemoryOrderRepositoryTest` | 7 | storage behaviour: replace on same id, filter by customer, ordering, deletion, seeding |
+| `CustomIntegrationHandlersTest` | 13 | Architecture A: returned documents, the error code inside every `ApiError`, `INTERNAL_ERROR` leaking nothing |
+| `OrdersApiHandlerTest` | 26 | Architecture B: every status code, `Location`, `Allow`, `204` with no body, malformed JSON, base64 body, missing parameter, unknown route, null event, 500 |
+| `ProxyEventFixturesTest` | 4 | the saved API Gateway events still work against the real handler |
 
 What tests cannot cover, and is therefore verified against a deployed stage by
 `scripts/smoke-test.sh`: Architecture A's selection patterns (whether `ORDER_NOT_FOUND` really
@@ -652,13 +722,14 @@ responsibility live".
 | --- | --- |
 | Complete Java source code | [`orders-api/src/main/java`](orders-api/src/main/java) |
 | Maven configuration | [`orders-api/pom.xml`](orders-api/pom.xml) |
-| Unit tests | [`orders-api/src/test/java`](orders-api/src/test/java) — 63 tests |
+| Unit tests | [`orders-api/src/test/java`](orders-api/src/test/java) — 78 tests |
 | Lambda handlers | [`adapter/lambda/custom`](orders-api/src/main/java/com/eci/orders/adapter/lambda/custom) (A), [`adapter/lambda/proxy`](orders-api/src/main/java/com/eci/orders/adapter/lambda/proxy) (B) |
 | API Gateway configuration | [`infra/openapi-proxy.yaml`](infra/openapi-proxy.yaml), [`infra/openapi-custom.yaml`](infra/openapi-custom.yaml), [`infra/mapping-templates/`](infra/mapping-templates), [`infra/API-GATEWAY-SETUP.md`](infra/API-GATEWAY-SETUP.md) |
 | Example requests and responses | [`docs/examples/requests-responses.md`](docs/examples/requests-responses.md), [`docs/examples/lambda-direct-invocations.md`](docs/examples/lambda-direct-invocations.md) |
 | Example API Gateway event | [`orders-api/src/test/resources/events/`](orders-api/src/test/resources/events) + [`docs/events/README.md`](docs/events/README.md) |
 | Architecture diagram | [above](#final-architecture-diagram) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Answers to the architectural questions | this README (Part 0, checkpoints 1–3, the comparison) |
+| Prediction committed before the DELETE extension | [`docs/PREDICTION-DELETE.md`](docs/PREDICTION-DELETE.md), committed one commit earlier |
 | Analysis of the AI assistant's decisions | [`docs/AI-REVIEW.md`](docs/AI-REVIEW.md) |
 | Build and test instructions | [Quick start](#quick-start), [`scripts/README.md`](scripts/README.md) |
 | Demonstration video | script in [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md) |
